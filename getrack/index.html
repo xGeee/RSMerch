@@ -1,0 +1,368 @@
+<html>
+<head>
+<script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.6/js/bootstrap.js" integrity="sha384-nbu0EcklP74/4DaTXgE8DZcxAX458y/YsSqsK9R31nCkAtdJC5tHRoMsGlNqpo2H" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.6/css/bootstrap.min.css">
+
+<style>
+.itemrow{
+	 transition: background-color 1s;
+	 -webkit-transition: background-color 1s;
+}
+</style>
+</head>
+<body>
+ <div class="container">
+      <nav class="navbar navbar-default">
+        <div class="container-fluid">
+          <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+              <span class="sr-only">Toggle navigation</span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">G/e tracker</a>
+          </div>
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+              <li class="active"><a href="#">Home</a></li>
+              <li><a href="#">About</a></li>
+            </ul>
+            <ul class="nav navbar-nav navbar-right">
+                <li><a href="#,207:,257:257b-207s" target="_blank" >clean ranars?</a></li>
+                <li><a href="#,2434:,139:139avg*4/3-2434avg" target="_blank" >decant ppots?</a></li>
+                <li><a href="#,2436:,2440:,2442:,269:,12695:12695avg-%282436avg+2440avg+2442avg+269avg%29" target="_blank" >super combat?</a></li>
+            </ul>
+          </div><!--/.nav-collapse -->
+        </div><!--/.container-fluid -->
+      </nav><br/>
+
+	<div class="row">
+	    <div class="col-sm-6">
+			<div class="panel panel-default">
+				<div class="panel-body">
+					<div class="form-group">
+					<input type="text" id="input" class="form-control" placeholder='Item ID' value=''/>
+					<input type="text" id="calc" class="form-control" placeholder='Custom calc (eq: 257b-207s)' value=''/>
+					<button class='btn btn-primary' onclick="click_add(document.getElementById('input').value, document.getElementById('calc').value)">Add</button>
+					<a href='https://rsbuddy.com/exchange/names.json' target='_blank'><button class='btn btn-default'>names.json</button></a>
+		
+					</div>
+				</div>
+			</div>
+		</div>
+	    <div class="col-sm-6">
+			<div class="panel panel-default">
+				<div class="panel-body">
+					<div id="logger" style="width:100%; height:120px;overflow-x:hidden;overflow-y:scroll"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="row">
+	    <div class="col-sm-12">
+			<div class="panel panel-default">
+				<div class="panel-body">
+					<table class="table">
+					  <thead>
+					    <tr>
+					      <th>Item</th>
+						  <th>Avg.</th>
+					      <th>Sell Price</th>
+					      <th>Buy Price</th>
+					      <th>Margin</th>
+					      <th>Volume</th>
+					      <th>Calc</th>
+						  <th>Auto refresh</th>
+						  <th>Notification</th>
+						  <th>Delete</th>
+					    </tr>
+					  </thead>
+					  <tbody id="itemtable">
+					  </tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+    </div>
+</div>
+<script>
+function desktop_notify(id, msg)
+{
+	Notification.requestPermission(function(perm){
+		notification = new Notification('G/e Track notification', {icon: 'http://cdn.rsbuddy.com/items/' + id + '.png', body: msg});
+	});
+}
+desktop_notify(123, 'this is a test notification.\\nIf you see this, it works.')
+
+items = [];
+
+var vars = {};
+var refresh_delay = 300000;
+
+Date.prototype.now = function () {
+     return ((this.getHours() < 10)?"0":"") + this.getHours() +":"+ ((this.getMinutes() < 10)?"0":"") + this.getMinutes() +":"+ ((this.getSeconds() < 10)?"0":"") + this.getSeconds();
+}
+function pprint(x) {
+	x = parseInt(x);
+	return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function getval(id)
+{
+	return parseInt(document.getElementById(id).getAttribute('data-value'))
+}
+function click_add(id,calc)
+{
+	location.hash = location.hash + "," + id;
+	location.hash = location.hash + ":" + calc
+	api(id,calc);
+}
+function toggle_refresh(id)
+{
+	index = document.getElementById(id + 'auto').selectedIndex
+	v = document.getElementById(id + 'auto').options[index].value;
+	if (v > 1000)
+	{
+		clearTimeout(vars[id + 'timeout']);
+		vars[id + 'timeout'] = setTimeout(function() { api(id,document.getElementById(id+'calc').getAttribute('data-value')); },v);
+		log('Auto refresh activated');
+	}
+	else
+	{
+		clearTimeout(vars[id + 'timeout']);
+		vars[id + 'timeout'] = false;
+		log('Auto refresh stopped');
+	}
+
+}
+function log(msg)
+{
+	l = document.getElementById('logger');
+	var date = new Date();
+    var hour = date.getHours();
+    var min = date.getMinutes();
+    var sec = date.getSeconds();
+    hour = (hour < 10 ? "0" : "") + hour;
+    min = (min < 10 ? "0" : "") + min;
+    sec = (sec < 10 ? "0" : "") + sec;
+
+	d = hour +":" + min + ":" + sec;
+	l.innerHTML = "<span style='color:#cccccc'>[ " + d + " ]</span> " + msg + "<br/>" + l.innerHTML;
+}
+function api(id,calc)
+{
+	if (! document.getElementById(id))
+	{
+		create_new_row(id);
+	}
+    var xhttp = new XMLHttpRequest();
+    xhttp.open('GET', 'https://api.rsbuddy.com/grandExchange?a=guidePrice&i='+id, true);
+    xhttp.send(null);
+
+    xhttp.onreadystatechange = function() {
+ 	   if (xhttp.readyState == 4 && xhttp.status == 200) {
+ 	    items[id] = JSON.parse(xhttp.responseText);
+ 	   	items[id]['date'] = Date.now();
+
+		if (items[id]['overall'] > vars[id + 'avg'])
+		{
+			document.getElementById(id).style.background= '#DFF0D8';
+			//document.getElementById(id).style.background= 'green';
+			setTimeout(function(){
+				document.getElementById(id).style.background= 'white';
+			}, 1200);
+		}
+		if (items[id]['overall'] < vars[id + 'avg'])
+		{
+			document.getElementById(id).style.background= '#F2DEDE';
+			//document.getElementById(id).style.background= 'red';
+			setTimeout(function(){
+				document.getElementById(id).style.background= 'white';
+			}, 1200);
+		}
+		
+		notif_price = document.getElementById(id + "notif_s").value;
+		if((items[id]['selling'] < notif_price && notif_price < vars[id + 's']) || (items[id]['buying'] < notif_price && notif_price < vars[id + 'b']))
+		{
+			desktop_notify(id, 'The item ' + id + ' went DOWN from ' + vars[id + 's'] + ' to ' + items[id]['selling']) ;
+		}
+		notif_price = document.getElementById(id + "notif_b").value;
+		if ((items[id]['selling'] > notif_price && notif_price > vars[id + 's']) || (items[id]['buying'] > notif_price && notif_price > vars[id + 'b']))
+		{
+			desktop_notify(id, 'The item ' + id + ' went UP from ' + vars[id + 'b'] + ' to ' + items[id]['selling']);
+		}
+		
+
+		vars[id + 'avg'] = items[id]['overall'];
+		vars[id + 's'] = items[id]['selling'];
+		vars[id + 'b'] = items[id]['buying'];
+	
+			
+		log("item:" + id + " / avg:" + pprint(items[id]['overall']) + " buy:" + pprint(items[id]['buying']) + " sell:" + pprint(items[id]['selling']));
+		//log(id + " " + items[id]['overall'] + " " + items[id]['buying'] + " " + items[id]['selling'])
+
+		document.getElementById(id + "avg").innerHTML = pprint(items[id]['overall']);
+		document.getElementById(id + "avg").setAttribute('data-value', items[id]['overall']);
+
+		document.getElementById(id + "s").innerHTML = pprint(items[id]['selling']);
+		document.getElementById(id + "s").setAttribute('data-value', items[id]['selling']);
+
+		document.getElementById(id + "b").innerHTML = pprint(items[id]['buying']);
+		document.getElementById(id + "b").setAttribute('data-value', items[id]['buying']);
+
+		document.getElementById(id + "v").innerHTML = pprint(items[id]['buyingQuantity']) + "<br/>" + pprint(items[id]['sellingQuantity']);
+		//document.getElementById(id + "v").setAttribute('data-value', items[id]['buyingQuantity']);
+		
+		if (calc)
+		{
+			document.getElementById(id + "calc").innerHTML = calc;
+			document.getElementById(id + "calc").title = calc;
+			document.getElementById(id + "calc").setAttribute('data-original-title', calc);
+			document.getElementById(id + "calc").setAttribute('data-value', calc);
+		}
+
+		var margin = (Math.abs(getval(id + "b") - getval(id + "s")) * 100 / getval(id + "s")).toFixed(3);
+		document.getElementById(id + "m").innerHTML = margin + "%";
+
+		setTimeout(function() { apply_calc() },1000);
+		if (vars[id + 'timeout'])
+		{
+			index = document.getElementById(id + 'auto').selectedIndex
+			v = document.getElementById(id + 'auto').options[index].value;
+			if (v > 1000)
+			{
+				vars[id + 'timeout'] = setTimeout(function() { api(id,calc) }, v);
+			}
+		}
+    }  
+  }
+}
+function apply_calc()
+{
+	rows = document.getElementsByClassName('itemrow');
+	for (i = 0; i<rows.length; ++i)
+	{
+		id = rows[i].id;
+
+		if (document.getElementById(rows[i].id+'calc').getAttribute('data-value'))
+			document.getElementById(rows[i].id+'calc').innerHTML = document.getElementById(rows[i].id+'calc').getAttribute('data-value');
+
+		for(j = 0; j<rows.length; ++j)
+		{
+			var html = document.getElementById(rows[j].id+'calc');
+			//html.innerHTML = html.innerHTML.replace(new RegExp('' + id + 's', 'gi'), getval(id + "s"));
+			//html.innerHTML = html.innerHTML.replace(new RegExp('' + id + 'b', 'gi'), getval(id + "b"));
+			//html.innerHTML = html.innerHTML.replace(new RegExp('' + id + 'avg', 'gi'), getval(id + "avg"));
+			for (var v in vars) {
+				html.innerHTML = html.innerHTML.replace(new RegExp(v, 'gi'), vars[v]);
+			}
+		}
+	}
+	calcs = document.getElementsByClassName('calc');
+	for (i = 0; i < calcs.length; ++i)
+	{
+		if (calcs[i].getAttribute('data-value'))
+		calcs[i].innerHTML = eval(calcs[i].innerHTML.replace(/[^-()bsavg\d/*+.]/g, ''));
+	}
+}
+function create_new_row(id)
+{
+	if (document.getElementById(id))
+	{
+		return;
+	}
+
+	var t = document.getElementById('itemtable');
+	var row = t.insertRow(-1);
+	row.id = id;
+	row.className = "itemrow";
+	row.style.verticalAlign = "baseline";
+
+	var cell = row.insertCell(-1);
+	cell.innerHTML="<span style='font-size:8px;'>" + id + " </span><br/>";
+	cell.innerHTML+="<a href='https://rsbuddy.com/exchange/?id=" + id + "' target='_blank'/><img src='http://cdn.rsbuddy.com/items/" + id + ".png' alt='" + id + "'/></a><br/>";
+
+	var cell = row.insertCell(-1);
+	cell.id = id + "avg";
+	cell.alt = cell.id
+	cell.innerHTML = "$" + cell.id;
+
+
+	var cell = row.insertCell(-1);
+	cell.id = id + "s";
+	cell.alt = cell.id
+	cell.innerHTML = "$" + cell.id;
+
+	var cell = row.insertCell(-1);
+	cell.id = id + "b";
+	cell.alt = cell.id
+	cell.innerHTML = "$" + cell.id;
+
+	var cell = row.insertCell(-1);
+	cell.id = id + "m";
+	cell.alt = cell.id;
+	cell.innerHTML = "$" + cell.id;
+
+	var cell = row.insertCell(-1);
+	cell.id = id + "v";
+	cell.alt = cell.id;
+	cell.innerHTML = "$" + cell.id;
+
+	var cell = row.insertCell(-1);
+	//cell.id = id + "calc";
+//	cell.className = "calc"
+//	cell.alt = cell.id;
+
+	var tt = document.createElement('span');
+	tt.id = id + "calc"
+	tt.setAttribute('data-toggle', 'tooltip');
+	tt.setAttribute('rel', 'tooltip');
+	tt.className = "calc";
+	tt.setAttribute('data-placement', 'top');
+//	tt.setAttribute('title', 'a');
+	cell.appendChild(tt);
+
+	var cell = row.insertCell(-1);
+	var select =  "<select id='" + id + "auto' onchange='toggle_refresh(" + id + ")'>"
+	select += "<option value='0'>None</option>";
+	select += "<option value='120000'>2 min</option>";
+	select += "<option value='300000'>5 min</option>";
+	select += "<option value='600000'>10 min</option>";
+	select += "<option value='1800000'>30 min</option>";
+	select += "</select> ";
+
+	cell.innerHTML = select;
+	cell.innerHTML += "<button type='button' class='btn btn-primary' onclick='api(" + id + ")'>Refresh</button> ";
+
+	var cell = row.insertCell(-1);
+	cell.innerHTML = "<input type='text' id='" + id + "notif_s' class='form-control' style='width:90px' placeholder='Low (sell)'/>";
+	cell.innerHTML += "<input type='text' id='" + id + "notif_b' class='form-control' style='width:90px' placeholder='High (buy)'x'/>";
+
+	var cell = row.insertCell(-1);
+	cell.id = id + "c";
+	cell.alt = cell.id;
+	cell.innerHTML ="<button type='button' class='btn btn-danger' onclick='delete_row(" + id + ")'>X</button>";
+}
+function delete_row(id)
+{
+	e = document.getElementById(id);
+	e.parentNode.removeChild(e);
+	location.hash = location.hash.replace(',' + id, '');
+}
+
+var ids = decodeURIComponent(location.hash).split(',');
+for(i=1; i<ids.length; ++i)
+{
+	api(ids[i].split(':')[0] ,ids[i].split(':')[1]);
+}
+
+//initialize tooltips:
+$(function () {
+	$('[data-toggle="tooltip"]').tooltip()
+})
+
+</script>
+</body>
+</html>
